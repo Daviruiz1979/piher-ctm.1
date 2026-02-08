@@ -39,7 +39,7 @@ export interface Task {
     endDate?: string; // ISO Date
     completedDate?: string; // ISO Date
     customFields?: Record<string, any>; // ID del campo -> Valor
-    image_url?: string;
+    image_url?: string | null;
     createdAt: string;
     updatedAt: string;
 }

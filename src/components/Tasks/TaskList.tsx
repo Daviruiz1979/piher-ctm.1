@@ -124,29 +124,34 @@ const TaskList = () => {
 
         setIsUploading(true);
         try {
-            let image_url = editingTask?.image_url;
+            let final_image_url = editingTask?.image_url;
 
             if (selectedFile) {
-                image_url = await db.uploadTaskImage(selectedFile, user.id);
+                // Si hay un archivo nuevo, lo subimos
+                final_image_url = await db.uploadTaskImage(selectedFile, user.id);
+            } else if (imagePreview === null) {
+                // Si el preview es null, es que el usuario pulsó la 'X'
+                final_image_url = null;
             }
 
+            const taskData = {
+                ...data,
+                estimatedHours: Number(data.estimatedHours),
+                image_url: final_image_url,
+            };
+
             if (editingTask) {
-                await updateTask(editingTask.id, {
-                    ...data,
-                    estimatedHours: Number(data.estimatedHours),
-                    image_url,
-                });
+                await updateTask(editingTask.id, taskData);
             } else {
                 await addTask({
-                    ...data,
-                    estimatedHours: Number(data.estimatedHours),
+                    ...taskData,
                     customFields: {},
-                    image_url,
                 });
             }
             handleCloseModal();
         } catch (error) {
             console.error('Error in task submission:', error);
+            alert('Error al guardar la tarea. Por favor, revisa el SQL de Supabase.');
         } finally {
             setIsUploading(false);
         }
@@ -283,8 +288,12 @@ const TaskList = () => {
                                         <td className="px-6 py-4">
                                             <div className="flex items-center space-x-3">
                                                 {task.image_url && (
-                                                    <div className="flex-shrink-0 w-10 h-10 rounded-lg overflow-hidden border border-slate-200">
-                                                        <img src={task.image_url} alt="" className="w-full h-full object-cover" />
+                                                    <div className="flex-shrink-0 w-10 h-10 rounded-lg overflow-hidden border border-slate-200 group-hover:overflow-visible relative z-10">
+                                                        <img
+                                                            src={task.image_url}
+                                                            alt=""
+                                                            className="w-full h-full object-cover transition-all duration-300 hover:scale-[3.5] hover:shadow-2xl hover:rounded-md cursor-zoom-in origin-left"
+                                                        />
                                                     </div>
                                                 )}
                                                 <div>

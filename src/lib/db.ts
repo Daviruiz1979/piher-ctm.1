@@ -34,30 +34,101 @@ export const db = {
             console.error('Error fetching tasks:', error);
             return [];
         }
-        return data as Task[];
+
+        // Mapeo de snake_case (DB) a camelCase (UI)
+        return data.map(t => ({
+            id: t.id,
+            projectId: t.project_id,
+            title: t.title,
+            description: t.description,
+            assignedTo: t.assigned_to,
+            departmentId: t.department_id,
+            createdBy: t.user_id,
+            priority: t.priority,
+            status: t.status,
+            estimatedHours: t.estimated_hours,
+            startDate: t.start_date,
+            endDate: t.end_date,
+            completedDate: t.completed_date,
+            customFields: t.custom_fields,
+            image_url: t.image_url,
+            createdAt: t.created_at,
+            updatedAt: t.updated_at
+        })) as Task[];
     },
 
     saveTask: async (task: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>, userId: string) => {
         const { data, error } = await supabase
             .from('tasks')
-            .insert([{ ...task, user_id: userId }])
+            .insert([{
+                user_id: userId,
+                project_id: task.projectId,
+                title: task.title,
+                description: task.description,
+                assigned_to: task.assignedTo,
+                department_id: task.departmentId,
+                priority: task.priority,
+                status: task.status,
+                estimated_hours: task.estimatedHours,
+                start_date: task.startDate,
+                end_date: task.endDate,
+                custom_fields: task.customFields || {},
+                image_url: task.image_url
+            }])
             .select()
             .single();
 
         if (error) throw error;
-        return data as Task;
+
+        // Devolver mapped result
+        return {
+            ...task,
+            id: data.id,
+            createdAt: data.created_at,
+            updatedAt: data.updated_at
+        } as Task;
     },
 
     updateTask: async (id: string, updates: Partial<Task>) => {
+        // Mapear updates a snake_case
+        const mappedUpdates: any = {};
+        if (updates.projectId !== undefined) mappedUpdates.project_id = updates.projectId;
+        if (updates.title !== undefined) mappedUpdates.title = updates.title;
+        if (updates.description !== undefined) mappedUpdates.description = updates.description;
+        if (updates.assignedTo !== undefined) mappedUpdates.assigned_to = updates.assignedTo;
+        if (updates.departmentId !== undefined) mappedUpdates.department_id = updates.departmentId;
+        if (updates.priority !== undefined) mappedUpdates.priority = updates.priority;
+        if (updates.status !== undefined) mappedUpdates.status = updates.status;
+        if (updates.estimatedHours !== undefined) mappedUpdates.estimated_hours = updates.estimatedHours;
+        if (updates.startDate !== undefined) mappedUpdates.start_date = updates.startDate;
+        if (updates.endDate !== undefined) mappedUpdates.end_date = updates.endDate;
+        if (updates.completedDate !== undefined) mappedUpdates.completed_date = updates.completedDate;
+        if (updates.customFields !== undefined) mappedUpdates.custom_fields = updates.customFields;
+        if (updates.image_url !== undefined) mappedUpdates.image_url = updates.image_url;
+
         const { data, error } = await supabase
             .from('tasks')
-            .update(updates)
+            .update(mappedUpdates)
             .eq('id', id)
             .select()
             .single();
 
         if (error) throw error;
-        return data as Task;
+
+        // Mapear de vuelta
+        return {
+            ...updates,
+            id: data.id,
+            projectId: data.project_id,
+            assignedTo: data.assigned_to,
+            departmentId: data.department_id,
+            estimatedHours: data.estimated_hours,
+            startDate: data.start_date,
+            endDate: data.end_date,
+            createdAt: data.created_at,
+            updatedAt: data.updated_at,
+            image_url: data.image_url
+        } as unknown as Task;
     },
 
     deleteTask: async (id: string) => {
