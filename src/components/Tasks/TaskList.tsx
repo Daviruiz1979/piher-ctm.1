@@ -2,14 +2,20 @@
 import { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { useForm } from 'react-hook-form';
-import { Plus, Search, User, Filter, Pencil, X } from 'lucide-react';
+import { Plus, Search, User, Filter, Pencil, X, Upload, Loader } from 'lucide-react';
 import { formatDate, cn } from '../../lib/utils';
 import type { Priority, Status, Task } from '../../lib/types';
+import { db } from '../../lib/db';
+import { useAuth } from '../../context/AuthContext';
 
 const TaskList = () => {
     const { tasks, members, departments, addTask, updateTask, initialTaskFilter, setInitialTaskFilter } = useApp();
+    const { user } = useAuth();
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingTask, setEditingTask] = useState<Task | null>(null);
+    const [selectedFile, setSelectedFile] = useState<File | null>(null);
+    const [imagePreview, setImagePreview] = useState<string | null>(null);
+    const [isUploading, setIsUploading] = useState(false);
     const { register, handleSubmit, reset, setValue, formState: { errors } } = useForm();
 
 
@@ -77,10 +83,25 @@ const TaskList = () => {
             setValue('startDate', editingTask.startDate.split('T')[0]);
             setValue('endDate', editingTask.endDate ? editingTask.endDate.split('T')[0] : '');
             setValue('description', editingTask.description);
+            setImagePreview(editingTask.image_url || null);
         } else {
             reset();
+            setImagePreview(null);
         }
+        setSelectedFile(null);
     }, [editingTask, setValue, reset]);
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            setSelectedFile(file);
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setImagePreview(reader.result as string);
+            };
+            reader.readAsDataURL(file);
+        }
+    };
 
     const handleOpenModal = (task?: Task) => {
         if (task) {
@@ -98,20 +119,37 @@ const TaskList = () => {
         reset();
     };
 
-    const onSubmit = (data: any) => {
-        if (editingTask) {
-            updateTask(editingTask.id, {
-                ...data,
-                estimatedHours: Number(data.estimatedHours),
-            });
-        } else {
-            addTask({
-                ...data,
-                estimatedHours: Number(data.estimatedHours),
-                customFields: {}, // Placeholder para campos custom
-            });
+    const onSubmit = async (data: any) => {
+        if (!user) return;
+
+        setIsUploading(true);
+        try {
+            let image_url = editingTask?.image_url;
+
+            if (selectedFile) {
+                image_url = await db.uploadTaskImage(selectedFile, user.id);
+            }
+
+            if (editingTask) {
+                await updateTask(editingTask.id, {
+                    ...data,
+                    estimatedHours: Number(data.estimatedHours),
+                    image_url,
+                });
+            } else {
+                await addTask({
+                    ...data,
+                    estimatedHours: Number(data.estimatedHours),
+                    customFields: {},
+                    image_url,
+                });
+            }
+            handleCloseModal();
+        } catch (error) {
+            console.error('Error in task submission:', error);
+        } finally {
+            setIsUploading(false);
         }
-        handleCloseModal();
     };
 
     const getPriorityColor = (priority: Priority) => {
@@ -243,18 +281,27 @@ const TaskList = () => {
                                 filteredTasks.map((task) => (
                                     <tr key={task.id} className="hover:bg-slate-50/50 transition-colors group">
                                         <td className="px-6 py-4">
-                                            <div className="flex items-center space-x-2 mb-1">
-                                                <span className="text-xs font-mono text-slate-400">#{task.projectId}</span>
-                                                {task.departmentId && (
-                                                    <span
-                                                        className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded text-white"
-                                                        style={{ backgroundColor: departments.find(d => d.id === task.departmentId)?.color || '#94a3b8' }}
-                                                    >
-                                                        {departments.find(d => d.id === task.departmentId)?.name}
-                                                    </span>
+                                            <div className="flex items-center space-x-3">
+                                                {task.image_url && (
+                                                    <div className="flex-shrink-0 w-10 h-10 rounded-lg overflow-hidden border border-slate-200">
+                                                        <img src={task.image_url} alt="" className="w-full h-full object-cover" />
+                                                    </div>
                                                 )}
+                                                <div>
+                                                    <div className="flex items-center space-x-2 mb-0.5">
+                                                        <span className="text-xs font-mono text-slate-400">#{task.projectId}</span>
+                                                        {task.departmentId && (
+                                                            <span
+                                                                className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded text-white"
+                                                                style={{ backgroundColor: departments.find(d => d.id === task.departmentId)?.color || '#94a3b8' }}
+                                                            >
+                                                                {departments.find(d => d.id === task.departmentId)?.name}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <div className="text-slate-700 font-medium truncate max-w-xs">{task.title}</div>
+                                                </div>
                                             </div>
-                                            <div className="text-slate-700 font-medium truncate max-w-xs">{task.title}</div>
                                         </td>
                                         <td className="px-6 py-4">
                                             <div className="flex items-center">
@@ -397,11 +444,44 @@ const TaskList = () => {
                             </div>
 
                             <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-2">Adjuntar Imagen</label>
+                                <div className="flex flex-col md:flex-row gap-4">
+                                    <div className="flex-1">
+                                        <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-slate-300 rounded-xl cursor-pointer hover:bg-slate-50 transition-colors">
+                                            <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                                                <Upload className="w-8 h-8 text-slate-400 mb-2" />
+                                                <p className="text-xs text-slate-500">Haz clic para subir una imagen</p>
+                                            </div>
+                                            <input type="file" className="hidden" accept="image/*" onChange={handleFileChange} />
+                                        </label>
+                                    </div>
+
+                                    {imagePreview && (
+                                        <div className="relative w-full md:w-32 h-32 rounded-xl overflow-hidden border border-slate-200 bg-slate-100">
+                                            <img src={imagePreview} alt="Vista previa" className="w-full h-full object-cover" />
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setImagePreview(null);
+                                                    setSelectedFile(null);
+                                                    if (editingTask) editingTask.image_url = undefined;
+                                                }}
+                                                className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full shadow-lg"
+                                            >
+                                                <X size={12} />
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div>
                                 <label className="block text-sm font-medium text-slate-700 mb-1">Observaciones</label>
                                 <textarea
                                     {...register('description')}
                                     rows={3}
-                                    className="w-full border border-slate-200 rounded-lg p-2"
+                                    className="w-full border border-slate-200 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 transition-all font-sans text-sm"
+                                    placeholder="Detalles adicionales sobre la tarea..."
                                 />
                             </div>
 
@@ -415,9 +495,17 @@ const TaskList = () => {
                                 </button>
                                 <button
                                     type="submit"
-                                    className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+                                    disabled={isUploading}
+                                    className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 flex items-center shadow-lg shadow-blue-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all font-bold"
                                 >
-                                    {editingTask ? 'Actualizar' : 'Guardar'} Tarea
+                                    {isUploading ? (
+                                        <>
+                                            <Loader className="animate-spin mr-2" size={18} />
+                                            Guardando...
+                                        </>
+                                    ) : (
+                                        <>{editingTask ? 'Actualizar' : 'Guardar'} Tarea</>
+                                    )}
                                 </button>
                             </div>
                         </form>

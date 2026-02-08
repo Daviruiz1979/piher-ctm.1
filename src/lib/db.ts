@@ -3,6 +3,25 @@ import { supabase } from './supabase';
 import type { Task, TeamMember, Department } from './types';
 
 export const db = {
+    // STORAGE
+    uploadTaskImage: async (file: File, userId: string): Promise<string> => {
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${userId}/${Math.random().toString(36).substring(2)}.${fileExt}`;
+        const filePath = `task-images/${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+            .from('task-attachments')
+            .upload(filePath, file);
+
+        if (uploadError) throw uploadError;
+
+        const { data } = supabase.storage
+            .from('task-attachments')
+            .getPublicUrl(filePath);
+
+        return data.publicUrl;
+    },
+
     // TASKS
     getTasks: async (userId: string): Promise<Task[]> => {
         const { data, error } = await supabase
