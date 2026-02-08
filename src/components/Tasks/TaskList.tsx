@@ -16,6 +16,7 @@ const TaskList = () => {
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [imagePreview, setImagePreview] = useState<string | null>(null);
     const [isUploading, setIsUploading] = useState(false);
+    const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
     const { register, handleSubmit, reset, setValue, formState: { errors } } = useForm();
 
 
@@ -288,11 +289,15 @@ const TaskList = () => {
                                         <td className="px-6 py-4">
                                             <div className="flex items-center space-x-3">
                                                 {task.image_url && (
-                                                    <div className="flex-shrink-0 w-10 h-10 rounded-lg overflow-hidden border border-slate-200 group-hover:overflow-visible relative z-10">
+                                                    <div
+                                                        className="flex-shrink-0 w-10 h-10 rounded-lg overflow-hidden border border-slate-200 group-hover:overflow-visible relative z-10"
+                                                        title="Doble clic para pantalla completa"
+                                                    >
                                                         <img
                                                             src={task.image_url}
                                                             alt=""
-                                                            className="w-full h-full object-cover transition-all duration-300 hover:scale-[3.5] hover:shadow-2xl hover:rounded-md cursor-zoom-in origin-left"
+                                                            className="w-full h-full object-cover transition-all duration-300 hover:scale-[5.5] hover:shadow-2xl hover:rounded-md cursor-zoom-in origin-left"
+                                                            onDoubleClick={() => setFullscreenImage(task.image_url!)}
                                                         />
                                                     </div>
                                                 )}
@@ -519,6 +524,26 @@ const TaskList = () => {
                             </div>
                         </form>
                     </div>
+                </div>
+            )}
+
+            {/* Modal de Pantalla Completa (Lightbox) */}
+            {fullscreenImage && (
+                <div
+                    className="fixed inset-0 bg-black/95 z-[60] flex items-center justify-center p-4 md:p-10 cursor-zoom-out"
+                    onClick={() => setFullscreenImage(null)}
+                >
+                    <button
+                        className="absolute top-6 right-6 text-white/50 hover:text-white transition-colors p-2"
+                        onClick={() => setFullscreenImage(null)}
+                    >
+                        <X size={40} />
+                    </button>
+                    <img
+                        src={fullscreenImage}
+                        alt="Vista ampliada"
+                        className="max-w-full max-h-full object-contain rounded-lg shadow-2xl animate-in zoom-in-95 duration-200"
+                    />
                 </div>
             )}
         </div>
